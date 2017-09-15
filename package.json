@@ -1,0 +1,26 @@
+{
+  "name": "html-filter",
+  "version": "1.0.0",
+  "description": "Simple html parser and filter",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rylphs/html-filter.git"
+  },
+  "keywords": [
+    "parser",
+    "html"
+  ],
+  "author": "Raphael Couto Ferreira",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rylphs/html-filter/issues"
+  },
+  "homepage": "https://github.com/rylphs/html-filter#readme",
+  "devDependencies": {
+    "node-fetch": "^1.7.3"
+  }
+}

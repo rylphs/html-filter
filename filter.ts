@@ -108,20 +108,18 @@ export class Filter {
     }
 
     private containsText(text, filtered:number[], tk: TokenListResult){
-        console.log("filtered", tk.tags);
         return filtered.reduce((flat, item)=>{
             var tag = tk.tokens[item];
-            var htmlText = tk.src.substring(tag.start, tag.close);
-            var start = tag.start;
+            var start = tag.openEnd;
             var c = "";
             var children = tk.tokens[item].children;
             for(var i in children){
                 var child = tk.tokens[children[i]];
-                c += tk.src.substring(start, child.start);
-                start = (child.close || start ) + child.name.length + 3;// if(i == "4") break;
+                c += tk.src.substring(start, child.openStart);
+                start = child.closeEnd || child.openEnd ;// if(i == "4") break;
             }
-            c += tk.src.substring(start, tag.close);
-            console.log(tag.name, tag.start, tag.close, c);
+            c += tk.src.substring(start, tag.closeStart || tag.openStart);
+            
             if(c.indexOf(text) >= 0) flat.push(item);
             return flat;
         }, []);
@@ -147,14 +145,15 @@ fetch('https://www.w3schools.com/tags/tag_input.asp', {})
         var tk = new HTMLTokenizer();
         tk.feed(body);
         var f:Filter = new Filter(tk.tokenListResult, null);
-        var res = f.get("h2").hasText("Definition and Usage").results;
+        var res = f.get("*").hasText("Definition and Usage").results;
         var t2 = new Date().getTime();
         console.log("result in: " + (t2-t1));
         //var res = f.get("#main").hasDescendant(".w3-code").results;
         
         for(var i in res){
             var r = res[i];
-            console.log(body.substring(r.start, r.close+6));
+            console.log(body.substring(r.openStart, r.closeEnd));
+            console.log(body.substring(r.openEnd, r.closeStart));
             console.log("----");
         }
 

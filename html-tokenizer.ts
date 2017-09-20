@@ -3,11 +3,20 @@ interface TokenIndexMap {
 };
 
 type Token = {
-    name: string, start: number, close: number, children: number[]
+    name: string, 
+    openStart: number,
+    openEnd: number, 
+    closeStart: number, 
+    closeEnd: number,
+    children: number[]
 };
 
 type ResultInfo = {
-    index: number, hasCloseSign: boolean, tagName: string, attrInfo: string
+    index: number, 
+    tagText: string,
+    hasCloseSign: boolean, 
+    tagName: string, 
+    attrInfo: string
 };
 
 export type TokenListResult = {
@@ -92,8 +101,9 @@ export class HTMLTokenizer {
     private nextResult(html) {
         var result = this.tagRegex.exec(html);
         if (!result) return false;
-        var [, hasCloseSign, tagName, attrInfo] = result;
+        var [tagText, hasCloseSign, tagName, attrInfo] = result;
         var resultInfo = {
+            tagText,
             hasCloseSign: !!hasCloseSign,
             tagName, attrInfo, index: result.index
         };
@@ -108,7 +118,8 @@ export class HTMLTokenizer {
         if (stack.length > 0) {
             var i = stack.pop();
             var node = this.tokens[i];
-            node.close = this.resultInfo.index;
+            node.closeStart = this.resultInfo.index;
+            node.closeEnd = this.resultInfo.index + this.resultInfo.tagText.length + 1;
         }
         if (this.globalStack.length > 0)
             this.globalStack.pop();
@@ -120,7 +131,12 @@ export class HTMLTokenizer {
         this.parseTrackedAttrs();
         this.parseTrackedAttrs();
         var node: Token = {
-            name: result.tagName, start: result.index, close: null, children: []
+            name: result.tagName, 
+            openStart: result.index,
+            openEnd: result.index + result.tagText.length + 1,
+            closeStart: null,
+            closeEnd: null, 
+            children: []
         };
         if (this.globalStack.length > 0) {
             this.lastTokenAdded.children.push(this.nextTokenIndex);

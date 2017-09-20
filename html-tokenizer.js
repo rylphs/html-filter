@@ -81,8 +81,9 @@ var HTMLTokenizer = /** @class */ (function () {
         var result = this.tagRegex.exec(html);
         if (!result)
             return false;
-        var hasCloseSign = result[1], tagName = result[2], attrInfo = result[3];
+        var tagText = result[0], hasCloseSign = result[1], tagName = result[2], attrInfo = result[3];
         var resultInfo = {
+            tagText: tagText,
             hasCloseSign: !!hasCloseSign,
             tagName: tagName, attrInfo: attrInfo, index: result.index
         };
@@ -96,7 +97,8 @@ var HTMLTokenizer = /** @class */ (function () {
         if (stack.length > 0) {
             var i = stack.pop();
             var node = this.tokens[i];
-            node.close = this.resultInfo.index;
+            node.closeStart = this.resultInfo.index;
+            node.closeEnd = this.resultInfo.index + this.resultInfo.tagText.length + 1;
         }
         if (this.globalStack.length > 0)
             this.globalStack.pop();
@@ -107,7 +109,12 @@ var HTMLTokenizer = /** @class */ (function () {
         this.parseTrackedAttrs();
         this.parseTrackedAttrs();
         var node = {
-            name: result.tagName, start: result.index, close: null, children: []
+            name: result.tagName,
+            openStart: result.index,
+            openEnd: result.index + result.tagText.length + 1,
+            closeStart: null,
+            closeEnd: null,
+            children: []
         };
         if (this.globalStack.length > 0) {
             this.lastTokenAdded.children.push(this.nextTokenIndex);

@@ -21,6 +21,7 @@
   },
   "homepage": "https://github.com/rylphs/html-filter#readme",
   "devDependencies": {
-    "node-fetch": "^1.7.3"
+    "node-fetch": "^1.7.3",
+    "typescript": "^2.5.2"
   }
 }

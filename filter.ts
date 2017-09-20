@@ -1,82 +1,135 @@
+import {HTMLTokenizer, TokenListResult} from './html-tokenizer';
+
 export class Filter {
     private children:any[] = [];
 
-    constructor(private data:any, private filtered?){
-        if(!filtered) {
-            this.filtered = data.tk.reduce((item, i)=>i);
-        }
-        this.children = filtered.reduce(
-            (flat, item) => {
-                flat.push.apply(flat, this.data.tk[item].ch);
-                return flat;
+    constructor(private tokenizer:TokenListResult, private filtered?:number[]){
+        /*if(!filtered) {
+            this.filtered = tokenizer.tokens.reduce((tk, curr, i)=>{
+                tk.push(i);
+                return tk;
             },[]);
+        }*/
     }
 
     get results(){
-        if(!this.filtered) return this.data.tk;
-
-        return this.data.tk.filter((item, i)=> this.filtered.indexOf(i) > 0);
+        if(!this.filtered) return this.tokenizer.tokens;
+        return this.tokenizer.tokens.filter(
+            (item, i)=> {
+                return this.filtered.indexOf(i) >= 0
+            }
+        );
     }
 
-    is(type){
-        var origin  = /^\./.test(type) ?
-            this.data.cl : this.data.tg;
-        var found = this.getIntersecionArray(this.filtered, origin);
-        return new Filter(this.data, found);
+    get(query: string){
+        return new Filter(this.tokenizer, 
+            this.is(query, this.filtered, this.tokenizer));
     }
 
-    down(type):Filter{
-        var origin  = /^\./.test(type) ?
-            this.data.cl : this.data.tg;
-        var found = this.filtered.reduce((flat, item)=>{
-            var children = this.data.tk[item].ch;
+    getChildren(query: string){
+        return new Filter(this.tokenizer, 
+            this.down(query, this.filtered, this.tokenizer));
+    }
+
+    getDescendants(query:string){
+         return new Filter(this.tokenizer, 
+            this.allWayDown(query, this.filtered, this.tokenizer));
+    }
+
+    hasChildren(query: string){
+        return new Filter(this.tokenizer, 
+            this.lookDown(query, this.filtered, this.tokenizer));
+    }
+
+    hasDescendant(query: string){
+         return new Filter(this.tokenizer, 
+            this.lookAllWayDown(query, this.filtered, this.tokenizer));
+    }
+
+    private getOrigin(query:string, tk: TokenListResult){
+        
+        var origin =  /^\./.test(query) ?
+            tk.classes[query.replace(/^\./,'')] : tk.tags[query];
+        return origin || [];
+    }
+
+    private is(query: string, filtered: number[], tk: TokenListResult){
+        var origin = this.getOrigin(query, tk);
+        var found = this.getIntersecionArray(filtered, origin);
+        return found;
+    }
+
+    private down(query: string, filtered: number[], tk: TokenListResult) {
+        var origin = this.getOrigin(query, tk); 
+        var found = filtered.reduce((flat, item)=>{
+            var children = tk.tokens[item].children;
             flat.push.apply(flat, this.getIntersecionArray(children, origin));
             return flat;
         }, []);
-        return new Filter(this.data, found);
+        return found;
     }
 
-    across(type):Filter{
-        var found = <Filter>this;
-        var results = [];
-        while(found.children.length > 0) {
-            found = found.down(type);
-            results.push.apply(results, found.results);
-        };
-        return new Filter(this.data, results);
-    }
-
-    lookDown(type){
-        var origin  = /^\./.test(type) ?
-            this.data.cl : this.data.tg;
-        var found = this.filtered.reduce((flat, item)=>{
-            var children = this.data.tk[item].ch;
-            var filtered = this.getIntersecionArray(children, origin);
-            if(filtered.length > 0) flat.push(item);
+    private allWayDown(query:string, filtered:number[], tk: TokenListResult){
+        var origin = this.getOrigin(query, tk); 
+        var found = filtered.reduce((flat, item)=>{
+            var children = tk.tokens[item].children;
+            flat.push.apply(flat, this.getIntersecionArray(children, origin));
+            flat.push.apply(flat, this.allWayDown(query, children, tk));
             return flat;
         }, []);
-        return new Filter(this.data, found);
+        return found;
     }
 
-    lookAcross(type){
-        var found = <Filter>this;
-        var results = [];
-        while(found.children.length > 0) {
-            found = found.down(type);
-            results.push.apply(results, found.results);
-        };
-        return new Filter(this.data, results);
+    private lookDown(query:string, filtered:number[], tk: TokenListResult){
+       var origin = this.getOrigin(query, tk); 
+        var found = filtered.reduce((flat, item)=>{
+            var children = tk.tokens[item].children;
+            var intersection = this.getIntersecionArray(children, origin);
+            if(intersection.length > 0) flat.push(item);
+            return flat;
+        }, []);
+        return found;
+    }
+
+    lookAllWayDown(query:string, filtered:number[], tk: TokenListResult){
+        return filtered.reduce((flat, item)=>{
+            var childrenFound = this.allWayDown(query, [item], tk);
+            if(childrenFound.length > 0) flat.push(item);
+            return flat;
+        }, []);
     }
 
     contains(text){}
 
-    private getChildren(arr){
-        return arr.reduce((flat, item) => flat.push.apply(flat, this.data.tk[item].ch), []);
-    }
-
     private getIntersecionArray(arr1, arr2){
         if(!arr1) return arr2;
 
-        return arr1.filter(arr1.filter((item)=> arr2.indexOf(item) >= 0));
+        return arr1.reduce((flat, item)=> {
+            if(arr2.indexOf(item) >= 0) flat.push(item);
+            return flat;
+        }, []);
     }
 }
+
+import fetch from 'node-fetch';
+
+fetch('https://www.w3schools.com/tags/tag_input.asp', {})
+    .then(res => res.text())
+    .then(body => {
+        body = body.replace(/[\n\r]/gm, '');
+        var tk = new HTMLTokenizer();
+        tk.feed(body);
+        var f:Filter = new Filter(tk.tokenListResult, null);
+        var res = f.get(".w3-col").hasDescendant(".w3-code").results;
+        
+        for(var i in res){
+            var r = res[i];
+            console.log(body.substring(r.start, r.close+6));
+            console.log("----");
+        }
+
+        // var start= 57355;
+        // var close= 57809;
+        // console.log(body.substring(start, close+6))
+        
+    });

@@ -6,12 +6,12 @@ var Filter = /** @class */ (function () {
         this.tokenizer = tokenizer;
         this.filtered = filtered;
         this.children = [];
-        /*if(!filtered) {
-            this.filtered = tokenizer.tokens.reduce((tk, curr, i)=>{
+        if (!filtered) {
+            this.filtered = tokenizer.tokens.reduce(function (tk, curr, i) {
                 tk.push(i);
                 return tk;
-            },[]);
-        }*/
+            }, []);
+        }
     }
     Object.defineProperty(Filter.prototype, "results", {
         get: function () {
@@ -25,6 +25,9 @@ var Filter = /** @class */ (function () {
         enumerable: true,
         configurable: true
     });
+    Filter.prototype.hasText = function (text) {
+        return new Filter(this.tokenizer, this.containsText(text, this.filtered, this.tokenizer));
+    };
     Filter.prototype.get = function (query) {
         return new Filter(this.tokenizer, this.is(query, this.filtered, this.tokenizer));
     };
@@ -37,13 +40,20 @@ var Filter = /** @class */ (function () {
     Filter.prototype.hasChildren = function (query) {
         return new Filter(this.tokenizer, this.lookDown(query, this.filtered, this.tokenizer));
     };
-    Filter.prototype.hasDescendant = function (query) {
+    Filter.prototype.hasDescendants = function (query) {
         return new Filter(this.tokenizer, this.lookAllWayDown(query, this.filtered, this.tokenizer));
     };
     Filter.prototype.getOrigin = function (query, tk) {
-        var origin = /^\./.test(query) ?
-            tk.classes[query.replace(/^\./, '')] : tk.tags[query];
-        return origin || [];
+        if (!query || query === '')
+            return [];
+        var _a = query.match(/^([\.\#\*]?)(.*)/), typeChar = _a[1], key = _a[2];
+        if (typeChar === '*')
+            return tk.all;
+        else if (typeChar === '#')
+            return tk.ids[key] || [];
+        else if (typeChar === '.')
+            return tk.classes[key] || [];
+        return tk.tags[key] || [];
     };
     Filter.prototype.is = function (query, filtered, tk) {
         var origin = this.getOrigin(query, tk);
@@ -92,7 +102,26 @@ var Filter = /** @class */ (function () {
             return flat;
         }, []);
     };
-    Filter.prototype.contains = function (text) { };
+    Filter.prototype.containsText = function (text, filtered, tk) {
+        console.log("filtered", tk.tags);
+        return filtered.reduce(function (flat, item) {
+            var tag = tk.tokens[item];
+            var htmlText = tk.src.substring(tag.start, tag.close);
+            var start = tag.start;
+            var c = "";
+            var children = tk.tokens[item].children;
+            for (var i in children) {
+                var child = tk.tokens[children[i]];
+                c += tk.src.substring(start, child.start);
+                start = (child.close || start) + child.name.length + 3; // if(i == "4") break;
+            }
+            c += tk.src.substring(start, tag.close);
+            console.log(tag.name, tag.start, tag.close, c);
+            if (c.indexOf(text) >= 0)
+                flat.push(item);
+            return flat;
+        }, []);
+    };
     Filter.prototype.getIntersecionArray = function (arr1, arr2) {
         if (!arr1)
             return arr2;
@@ -110,10 +139,14 @@ node_fetch_1.default('https://www.w3schools.com/tags/tag_input.asp', {})
     .then(function (res) { return res.text(); })
     .then(function (body) {
     body = body.replace(/[\n\r]/gm, '');
+    var t1 = new Date().getTime();
     var tk = new html_tokenizer_1.HTMLTokenizer();
     tk.feed(body);
     var f = new Filter(tk.tokenListResult, null);
-    var res = f.get(".w3-col").hasDescendant(".w3-code").results;
+    var res = f.get("h2").hasText("Definition and Usage").results;
+    var t2 = new Date().getTime();
+    console.log("result in: " + (t2 - t1));
+    //var res = f.get("#main").hasDescendant(".w3-code").results;
     for (var i in res) {
         var r = res[i];
         console.log(body.substring(r.start, r.close + 6));

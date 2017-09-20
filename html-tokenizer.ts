@@ -1,4 +1,4 @@
-interface TokenIndexMap { 
+interface TokenIndexMap {
     [key: string]: number[];
 };
 
@@ -7,54 +7,65 @@ type Token = {
 };
 
 type ResultInfo = {
-    index:number, hasCloseSign: boolean, tagName: string, attrInfo: string
+    index: number, hasCloseSign: boolean, tagName: string, attrInfo: string
 };
 
 export type TokenListResult = {
-    classes: TokenIndexMap, tags: TokenIndexMap, tokens:  Token[]
+    src: string,
+    all: number[];
+    classes: TokenIndexMap,
+    ids: TokenIndexMap,
+    tags: TokenIndexMap,
+    tokens: Token[]
 }
 
 export class HTMLTokenizer {
-    private tagRegex: RegExp = /<(\/?)([a-zA-Z][a-zA-Z]*)([^\<\>]*)/g;
-    private nullTagsRegex = /(area|base|br|col|embed|hr|img|input|keygen|link|meta|param|source|track|wbr)/;
-    private classRegex = /\s*class=('[^']+'|"[^"]+")/;
+    private tagRegex: RegExp = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\/?[^\<\>]*/g;
     private globalStack: number[] = [];
     private stackMap: TokenIndexMap = {};
     private resultInfo: ResultInfo;
 
-    public tags: TokenIndexMap = {};
-    public classes: TokenIndexMap = {};
-    public tokens: Token[] = [];
+    private all: number[] = [];
+    private tags: TokenIndexMap = {};
+    private classes: TokenIndexMap = {};
+    private ids: TokenIndexMap = {};
+    private tokens: Token[] = [];
+    private src:string = "";
 
-    reset(){
-        this.classRegex.lastIndex = 0;
-        this.nullTagsRegex.lastIndex = 0;
+    reset() {
+        this.src = "";
         this.tagRegex.lastIndex = 0;
-
         this.globalStack = [];
         this.stackMap = {};
         this.resultInfo = null;
         this.tags = {};
+        this.ids = {};
         this.classes = {};
         this.tokens = [];
     }
 
     feed(html) {
+        this.src += html;
         while ((this.nextResult(html))) {
-            this.resultInfo.hasCloseSign ? 
+            this.resultInfo.hasCloseSign ?
                 this.parseCloseTag() :
                 this.parseOpeningTag();
         }
     }
 
-    get tokenListResult():TokenListResult {
+    get tokenListResult(): TokenListResult {
         return {
-            tokens: this.tokens, tags: this.tags, classes: this.classes
+            all: this.all,
+            src: this.src,
+            tokens: this.tokens,
+            tags: this.tags,
+            ids: this.ids,
+            classes: this.classes
         }
     }
 
-    private get lastTokenAdded(): Token{
-        if(this.globalStack.length < 1) return null;
+    private get lastTokenAdded(): Token {
+        if (this.globalStack.length < 1) return null;
         var lastIndex = this.globalStack[this.globalStack.length - 1];
         return this.tokens[lastIndex];
     }
@@ -63,25 +74,27 @@ export class HTMLTokenizer {
         return this.tokens.length;
     }
 
-    private parseClasses() {
-        var attrInfo = this.resultInfo.attrInfo;
-        var classResult = attrInfo.match(this.classRegex);
-        if (classResult && classResult.length > 0) {
-            var classNames = classResult[1].replace(/['"]/g, "").split(/\s/);
-            for (const i in classNames) {
-                var className = classNames[i];
-                this.classes[className] = this.classes[className] || [];
-                this.classes[className].push(this.nextTokenIndex);
+    private parseTrackedAttrs() {
+        var result;
+        var trackedAttrRegex = /\s*(class|id)=('[^']+'|"[^"]+")/g;
+        while ((result = trackedAttrRegex.exec(this.resultInfo.attrInfo))) {
+            var [, attr, content] = result;
+            var dst = attr === 'id' ? this.ids : this.classes;
+            var attrNames = content.replace(/['"]/g, "").split(/[\s,]/);
+            for (const i in attrNames) {
+                var name = attrNames[i];
+                dst[name] = dst[name] || [];
+                dst[name].push(this.nextTokenIndex);
             }
         }
     }
 
-    private nextResult(html){
+    private nextResult(html) {
         var result = this.tagRegex.exec(html);
-        if(!result) return false;
+        if (!result) return false;
         var [, hasCloseSign, tagName, attrInfo] = result;
         var resultInfo = {
-            hasCloseSign : !!hasCloseSign,
+            hasCloseSign: !!hasCloseSign,
             tagName, attrInfo, index: result.index
         };
         this.tags[resultInfo.tagName] = this.tags[resultInfo.tagName] || [];
@@ -97,24 +110,27 @@ export class HTMLTokenizer {
             var node = this.tokens[i];
             node.close = this.resultInfo.index;
         }
-        if (this.globalStack.length > 0) 
+        if (this.globalStack.length > 0)
             this.globalStack.pop();
     }
 
     private parseOpeningTag() {
+        var nullTagsRegex = /(area|base|br|col|embed|hr|img|input|keygen|link|meta|param|source|track|wbr)/;
         var result = this.resultInfo;
-        this.parseClasses();
+        this.parseTrackedAttrs();
+        this.parseTrackedAttrs();
         var node: Token = {
             name: result.tagName, start: result.index, close: null, children: []
         };
         if (this.globalStack.length > 0) {
             this.lastTokenAdded.children.push(this.nextTokenIndex);
         }
-        if (!this.nullTagsRegex.test(result.tagName)) {
+        if (!nullTagsRegex.test(result.tagName)) {
             this.stackMap[result.tagName].push(this.nextTokenIndex);
             this.globalStack.push(this.nextTokenIndex);
         }
         this.tags[result.tagName].push(this.nextTokenIndex);
+        this.all.push(this.nextTokenIndex);
         this.tokens.push(node);
     }
 }

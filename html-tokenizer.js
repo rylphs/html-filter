@@ -3,27 +3,29 @@ Object.defineProperty(exports, "__esModule", { value: true });
 ;
 var HTMLTokenizer = /** @class */ (function () {
     function HTMLTokenizer() {
-        this.tagRegex = /<(\/?)([a-zA-Z][a-zA-Z]*)([^\<\>]*)/g;
-        this.nullTagsRegex = /(area|base|br|col|embed|hr|img|input|keygen|link|meta|param|source|track|wbr)/;
-        this.classRegex = /\s*class=('[^']+'|"[^"]+")/;
+        this.tagRegex = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\/?[^\<\>]*/g;
         this.globalStack = [];
         this.stackMap = {};
+        this.all = [];
         this.tags = {};
         this.classes = {};
+        this.ids = {};
         this.tokens = [];
+        this.src = "";
     }
     HTMLTokenizer.prototype.reset = function () {
-        this.classRegex.lastIndex = 0;
-        this.nullTagsRegex.lastIndex = 0;
+        this.src = "";
         this.tagRegex.lastIndex = 0;
         this.globalStack = [];
         this.stackMap = {};
         this.resultInfo = null;
         this.tags = {};
+        this.ids = {};
         this.classes = {};
         this.tokens = [];
     };
     HTMLTokenizer.prototype.feed = function (html) {
+        this.src += html;
         while ((this.nextResult(html))) {
             this.resultInfo.hasCloseSign ?
                 this.parseCloseTag() :
@@ -32,9 +34,13 @@ var HTMLTokenizer = /** @class */ (function () {
     };
     Object.defineProperty(HTMLTokenizer.prototype, "tokenListResult", {
         get: function () {
-            // console.log(this.classes)
             return {
-                tokens: this.tokens, tags: this.tags, classes: this.classes
+                all: this.all,
+                src: this.src,
+                tokens: this.tokens,
+                tags: this.tags,
+                ids: this.ids,
+                classes: this.classes
             };
         },
         enumerable: true,
@@ -57,15 +63,17 @@ var HTMLTokenizer = /** @class */ (function () {
         enumerable: true,
         configurable: true
     });
-    HTMLTokenizer.prototype.parseClasses = function () {
-        var attrInfo = this.resultInfo.attrInfo;
-        var classResult = attrInfo.match(this.classRegex);
-        if (classResult && classResult.length > 0) {
-            var classNames = classResult[1].replace(/['"]/g, "").split(/\s/);
-            for (var i in classNames) {
-                var className = classNames[i];
-                this.classes[className] = this.classes[className] || [];
-                this.classes[className].push(this.nextTokenIndex);
+    HTMLTokenizer.prototype.parseTrackedAttrs = function () {
+        var result;
+        var trackedAttrRegex = /\s*(class|id)=('[^']+'|"[^"]+")/g;
+        while ((result = trackedAttrRegex.exec(this.resultInfo.attrInfo))) {
+            var attr = result[1], content = result[2];
+            var dst = attr === 'id' ? this.ids : this.classes;
+            var attrNames = content.replace(/['"]/g, "").split(/[\s,]/);
+            for (var i in attrNames) {
+                var name = attrNames[i];
+                dst[name] = dst[name] || [];
+                dst[name].push(this.nextTokenIndex);
             }
         }
     };
@@ -94,19 +102,22 @@ var HTMLTokenizer = /** @class */ (function () {
             this.globalStack.pop();
     };
     HTMLTokenizer.prototype.parseOpeningTag = function () {
+        var nullTagsRegex = /(area|base|br|col|embed|hr|img|input|keygen|link|meta|param|source|track|wbr)/;
         var result = this.resultInfo;
-        this.parseClasses();
+        this.parseTrackedAttrs();
+        this.parseTrackedAttrs();
         var node = {
             name: result.tagName, start: result.index, close: null, children: []
         };
         if (this.globalStack.length > 0) {
             this.lastTokenAdded.children.push(this.nextTokenIndex);
         }
-        if (!this.nullTagsRegex.test(result.tagName)) {
+        if (!nullTagsRegex.test(result.tagName)) {
             this.stackMap[result.tagName].push(this.nextTokenIndex);
             this.globalStack.push(this.nextTokenIndex);
         }
         this.tags[result.tagName].push(this.nextTokenIndex);
+        this.all.push(this.nextTokenIndex);
         this.tokens.push(node);
     };
     return HTMLTokenizer;

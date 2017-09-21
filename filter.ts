@@ -21,12 +21,31 @@ export class Filter {
         );
     }
 
-    hasText(text:string){
+    getResults(contentOnly: boolean = false){
+        if(!this.filtered){
+            return this.tokenizer.src;
+        }
+        return this.filtered.map(
+            (item, i)=> {
+                var token = this.tokenizer.tokens[item];
+                var start = contentOnly ? token.openEnd : token.openStart;
+                var end = contentOnly ? token.closeStart : token.closeEnd;
+                return this.tokenizer.src.substring(start, end);
+            }, []
+        );
+    }
+
+    hasExp(exp:RegExp){ 
+        
         return new Filter(this.tokenizer, 
-            this.containsText(text, this.filtered, this.tokenizer));
+            this.containsExp(exp, this.filtered, this.tokenizer));
     }
 
     get(query: string){
+        var ch = this.results[0].children;
+        console.log(this.results); 
+        for(var i in ch) console.log(this.tokenizer.tokens[ch[i]]);
+       // if(1) return [];
         return new Filter(this.tokenizer, 
             this.is(query, this.filtered, this.tokenizer));
     }
@@ -107,20 +126,20 @@ export class Filter {
         }, []);
     }
 
-    private containsText(text, filtered:number[], tk: TokenListResult){
+    private containsExp(text:RegExp, filtered:number[], tk: TokenListResult){
         return filtered.reduce((flat, item)=>{
             var tag = tk.tokens[item];
             var start = tag.openEnd;
-            var c = "";
+            var tagContent = "";
             var children = tk.tokens[item].children;
             for(var i in children){
                 var child = tk.tokens[children[i]];
-                c += tk.src.substring(start, child.openStart);
+                tagContent += tk.src.substring(start, child.openStart);
                 start = child.closeEnd || child.openEnd ;// if(i == "4") break;
             }
-            c += tk.src.substring(start, tag.closeStart || tag.openStart);
-            
-            if(c.indexOf(text) >= 0) flat.push(item);
+            tagContent += tk.src.substring(start, tag.closeStart || tag.openStart);
+            console.log(tagContent);
+            if(text.test(tagContent)) flat.push(item);
             return flat;
         }, []);
     }
@@ -145,17 +164,17 @@ fetch('https://www.w3schools.com/tags/tag_input.asp', {})
         var tk = new HTMLTokenizer();
         tk.feed(body);
         var f:Filter = new Filter(tk.tokenListResult, null);
-        var res = f.get("*").hasText("Definition and Usage").results;
+        var res = f.get("body").hasExp(/Example/);
         var t2 = new Date().getTime();
         console.log("result in: " + (t2-t1));
         //var res = f.get("#main").hasDescendant(".w3-code").results;
-        
-        for(var i in res){
-            var r = res[i];
-            console.log(body.substring(r.openStart, r.closeEnd));
-            console.log(body.substring(r.openEnd, r.closeStart));
-            console.log("----");
-        }
+       // console.log(res.getResults(true));
+        // for(var i in res){
+        //     var r = res[i];
+        //     console.log(body.substring(r.openStart, r.closeEnd));
+        //     console.log(body.substring(r.openEnd, r.closeStart));
+        //     console.log("----");
+        // }
 
         // var start= 57355;
         // var close= 57809;

@@ -25,8 +25,27 @@ var Filter = /** @class */ (function () {
         enumerable: true,
         configurable: true
     });
-    Filter.prototype.hasText = function (text) {
-        return new Filter(this.tokenizer, this.containsText(text, this.filtered, this.tokenizer));
+    Filter.prototype.getResults = function (contentOnly) {
+        var _this = this;
+        if (contentOnly === void 0) { contentOnly = false; }
+        if (!this.filtered) {
+            return this.tokenizer.src;
+        }
+        return this.filtered.map(function (item, i) {
+            var token = _this.tokenizer.tokens[item];
+            var start = contentOnly ? token.openEnd : token.openStart;
+            var end = contentOnly ? token.closeStart : token.closeEnd;
+            return _this.tokenizer.src.substring(start, end);
+        }, []);
+    };
+    Filter.prototype.hasExp = function (exp) {
+        var ch = this.results[0].children;
+        console.log(this.results);
+        for (var i in ch)
+            console.log(this.tokenizer.tokens[ch[i]]);
+        if (1)
+            return [];
+        return new Filter(this.tokenizer, this.containsExp(exp, this.filtered, this.tokenizer));
     };
     Filter.prototype.get = function (query) {
         return new Filter(this.tokenizer, this.is(query, this.filtered, this.tokenizer));
@@ -102,19 +121,20 @@ var Filter = /** @class */ (function () {
             return flat;
         }, []);
     };
-    Filter.prototype.containsText = function (text, filtered, tk) {
+    Filter.prototype.containsExp = function (text, filtered, tk) {
         return filtered.reduce(function (flat, item) {
             var tag = tk.tokens[item];
             var start = tag.openEnd;
-            var c = "";
+            var tagContent = "";
             var children = tk.tokens[item].children;
             for (var i in children) {
                 var child = tk.tokens[children[i]];
-                c += tk.src.substring(start, child.openStart);
+                tagContent += tk.src.substring(start, child.openStart);
                 start = child.closeEnd || child.openEnd; // if(i == "4") break;
             }
-            c += tk.src.substring(start, tag.closeStart || tag.openStart);
-            if (c.indexOf(text) >= 0)
+            tagContent += tk.src.substring(start, tag.closeStart || tag.openStart);
+            console.log(tagContent);
+            if (text.test(tagContent))
                 flat.push(item);
             return flat;
         }, []);
@@ -140,16 +160,17 @@ node_fetch_1.default('https://www.w3schools.com/tags/tag_input.asp', {})
     var tk = new html_tokenizer_1.HTMLTokenizer();
     tk.feed(body);
     var f = new Filter(tk.tokenListResult, null);
-    var res = f.get("*").hasText("Definition and Usage").results;
+    var res = f.get("body").hasExp(/Example/);
     var t2 = new Date().getTime();
     console.log("result in: " + (t2 - t1));
     //var res = f.get("#main").hasDescendant(".w3-code").results;
-    for (var i in res) {
-        var r = res[i];
-        console.log(body.substring(r.openStart, r.closeEnd));
-        console.log(body.substring(r.openEnd, r.closeStart));
-        console.log("----");
-    }
+    // console.log(res.getResults(true));
+    // for(var i in res){
+    //     var r = res[i];
+    //     console.log(body.substring(r.openStart, r.closeEnd));
+    //     console.log(body.substring(r.openEnd, r.closeStart));
+    //     console.log("----");
+    // }
     // var start= 57355;
     // var close= 57809;
     // console.log(body.substring(start, close+6))
